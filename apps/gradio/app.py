@@ -1,7 +1,8 @@
 """Gradio adapter for the interface-neutral silent-speech service."""
 
+import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 import gradio as gr
 
@@ -39,19 +40,45 @@ def format_transcription(output):
     return transcript, "\n".join(lines)
 
 
+STATUS_IDLE = "⚪ **Waiting for a video.** Record or upload a clip to start."
+STATUS_RUNNING = (
+    "⏳ **Reading lips…** The first run also downloads the model, so it can "
+    "take a minute."
+)
+STATUS_NO_SPEECH = "⚠️ **No face or speech detected.** Try better lighting and face the camera."
+STATUS_FAILED = "❌ **Inference failed.** Details are in the transcript box."
+
+Outputs = tuple[str, str, str]
+
+
 def create_handler(
     service: SilentSpeechService,
-) -> Callable[[str | None, bool], tuple[str, str]]:
-    """Create a UI callback around any compatible core service."""
+) -> Callable[[str | None, bool], Iterator[Outputs]]:
+    """Create a UI callback around any compatible core service.
+
+    The callback is a generator yielding ``(status, transcript, breakdown)`` so
+    the status bar updates as soon as inference starts and again when it ends.
+    """
 
     def handle(video, flip):
         if not video:
-            return "Please record or upload a video first.", ""
+            yield STATUS_IDLE, "", ""
+            return
+        yield STATUS_RUNNING, "", ""
+        started = time.perf_counter()
         try:
             output = service.transcribe(video, nbest=5, hflip=bool(flip))
         except Exception:
-            return f"Error:\n{traceback.format_exc()}", ""
-        return format_transcription(output)
+            yield STATUS_FAILED, f"Error:\n{traceback.format_exc()}", ""
+            return
+        if not output.get("segments"):
+            yield STATUS_NO_SPEECH, *format_transcription(output)
+            return
+        elapsed = time.perf_counter() - started
+        yield (
+            f"✅ **Done** in {elapsed:.1f}s.",
+            *format_transcription(output),
+        )
 
     return handle
 
@@ -83,20 +110,33 @@ def build_app(service: SilentSpeechService | None = None) -> gr.Blocks:
                         "out as gibberish (some setups mirror the video)"
                     ),
                 )
-                button = gr.Button("Read my lips", variant="primary")
                 gr.Markdown(TIPS)
             with gr.Column():
+                status = gr.Markdown(STATUS_IDLE, container=True)
                 transcript = gr.Textbox(label="Transcript (lip-read)", lines=4)
                 breakdown = gr.Textbox(
                     label="Per-utterance breakdown",
                     lines=10,
                 )
 
-        button.click(
-            handler,
-            inputs=[video, flip],
-            outputs=[transcript, breakdown],
-        )
+        # Inference starts only once a recording or upload has finished and
+        # the file is on the server, so there is nothing to click too early.
+        # Toggling the flip box re-runs the current clip. "always_last" drops
+        # stale queued runs when the input changes again mid-inference.
+        for trigger, api_name, api_visibility in (
+            (video.change, "transcribe", "public"),
+            (flip.change, "transcribe_on_flip", "undocumented"),
+        ):
+            trigger(
+                handler,
+                inputs=[video, flip],
+                outputs=[status, transcript, breakdown],
+                api_name=api_name,
+                api_visibility=api_visibility,
+                show_progress="minimal",
+                show_progress_on=[status],
+                trigger_mode="always_last",
+            )
     return interface
 
 

@@ -1,0 +1,79 @@
+[project]
+name = "open-altergo"
+version = "0.1.0"
+description = "Extensible silent-speech inference and personalization"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+dependencies = [
+  "open-altergo-engine",
+  "python-api",
+]
+
+[project.optional-dependencies]
+# PyTorch build: pick exactly one (scripts/setup.sh detects it for you).
+# Every torch-dependent package lives here, so a plain `uv run` never swaps
+# the installed CPU/CUDA build for a different one.
+cpu = [
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+  "torchaudio==2.6.0",
+  "pytorch-lightning>=2.0.0",
+]
+cu124 = [
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+  "torchaudio==2.6.0",
+  "pytorch-lightning>=2.0.0",
+]
+# Interfaces
+gradio = ["gradio==6.15.2"]
+http = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "python-multipart>=0.0.20,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+modal = ["modal>=1.0,<2"]
+
+[tool.uv]
+package = false
+# PyTorch 2.6 publishes no Intel-macOS wheels, so on macOS only Apple Silicon
+# (native arm64 Python, not Rosetta) is supported.
+environments = [
+  "sys_platform == 'linux'",
+  "sys_platform == 'win32'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+conflicts = [[{ extra = "cpu" }, { extra = "cu124" }]]
+
+[tool.uv.workspace]
+members = ["cloud/engine", "apis/python_api"]
+
+[tool.uv.sources]
+open-altergo-engine = { workspace = true }
+python-api = { workspace = true }
+torch = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+]
+torchvision = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

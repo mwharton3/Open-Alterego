@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from .config import RuntimeConfig
+from .config import RuntimeConfig, resolve_device
 
 
 Transcription = dict[str, Any]
@@ -70,7 +70,7 @@ def _engine_reader_factory(config: RuntimeConfig) -> ReaderBackend:
     from open_altergo_engine.pipeline import LipReader
 
     return LipReader(
-        device=config.device,
+        device=resolve_device(config.device),
         detector=config.detector,
         enhance=config.enhance,
         ckpt_path=config.checkpoint_path,
