@@ -47,7 +47,9 @@ docs/
 ├── modal-finetuning.md
 ├── RESEARCH_LOG.md
 └── Silent-Lip-Reader-README.md
+scripts/                       setup.sh (GPU-aware install), export-requirements.sh
 app.py                         Hugging Face compatibility launcher
+requirements.txt               Generated from uv.lock for Hugging Face Spaces
 ```
 
 The dependency direction is deliberate:
@@ -62,30 +64,67 @@ Modal ───────────────────────► t
 The native iOS architecture, test matrix, Claude Code execution loop, and
 TestFlight plan live in [apps/apple](apps/apple/README.md).
 
-## Run the Gradio application
+## Install
 
-Python 3.11 and `ffmpeg` are recommended.
+Prerequisites: [uv](https://docs.astral.sh/uv/) and `ffmpeg`
+(`brew install ffmpeg` or `apt install ffmpeg libgl1 libglib2.0-0`). Supported
+platforms are Linux, Windows, and Apple Silicon macOS; PyTorch 2.6 has no
+Intel-macOS wheels.
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+curl -LsSf https://astral.sh/uv/install.sh | sh   # if uv is not installed
+scripts/setup.sh
 ```
 
-The first inference downloads the public Auto-AVSR checkpoint if no local
-checkpoint is configured.
+`scripts/setup.sh` creates `.venv` with Python 3.11 from `uv.lock` and picks
+the PyTorch build for the machine:
+
+| Machine | PyTorch build | Inference device |
+| --- | --- | --- |
+| Linux/Windows with an NVIDIA driver ≥ 525 | `cu124` (CUDA 12.4) | `cuda` |
+| Linux/Windows without one | `cpu` | `cpu` |
+| Apple Silicon Mac | `cpu` (standard macOS wheel) | `cpu` |
+
+It installs the `gradio` and `http` interfaces by default and finishes by
+printing the device inference will use. Override the choices with
+`scripts/setup.sh --backend cpu|cu124 --extras "gradio http"`, or run uv
+directly, always naming exactly one backend extra:
+
+```bash
+uv sync --extra cu124 --extra gradio --extra http
+```
+
+`uv run …` never changes the installed PyTorch build, but a bare `uv sync`
+removes it along with every extra not named; re-run `scripts/setup.sh` after
+pulling dependency changes.
+
+At runtime `LIPREAD_DEVICE` defaults to `auto`, which uses CUDA when it is
+available and the CPU otherwise. Set it to `cpu`, `cuda`, or `cuda:N` to
+override. Apple `mps` is not auto-selected: it needs
+`PYTORCH_ENABLE_MPS_FALLBACK=1` and measured about 2x slower than the CPU for
+this model.
+
+## Run the Gradio application
+
+```bash
+uv run python app.py
+```
+
+Record or upload a clip and inference starts as soon as the video reaches the
+server; the status bar above the transcript reports progress. The first
+inference downloads the public Auto-AVSR checkpoint if no local checkpoint is
+configured.
 
 ## Use the core without Gradio
 
 ```bash
-pip install -r requirements-core.txt
+scripts/setup.sh --extras ""
 ```
 
 ```python
 from python_api import RuntimeConfig, SilentSpeechService
 
-service = SilentSpeechService(RuntimeConfig(device="cpu"))
+service = SilentSpeechService(RuntimeConfig())  # device="auto"
 result = service.transcribe("sample.mp4")
 print(result["transcript"])
 ```
@@ -95,8 +134,7 @@ Set `LIPREAD_CKPT` to use a personalized checkpoint.
 ## Run the HTTP API
 
 ```bash
-pip install -r apis/http_api/requirements.txt
-uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
+uv run uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
 ```
 
 The HTTP API lets Swift and other non-Python clients upload a video to
@@ -111,7 +149,7 @@ revision, expected sizes, SHA-256 checksums, provenance, and license.
 Download and verify the complete bundle:
 
 ```bash
-python -m open_altergo_engine.model_assets download \
+uv run python -m open_altergo_engine.model_assets download \
   --local-dir ./models/silent-lip-reader
 ```
 
@@ -122,12 +160,12 @@ See [model assets](docs/model-assets.md) for exact hashes and provenance.
 The training code is not tied to Modal. On a machine with a CUDA GPU:
 
 ```bash
-python training/prepare_dataset.py \
+uv run python training/prepare_dataset.py \
   --manifest datasets/me/manifest.csv \
   --output-dir datasets/me/processed \
   --dataset-name me
 
-python training/train_personal.py \
+uv run python training/train_personal.py \
   --root-dir datasets/me/processed \
   --output-dir runs/me-v1 \
   --train-file me_train.csv \
@@ -136,6 +174,23 @@ python training/train_personal.py \
 
 See [Modal fine-tuning](docs/modal-finetuning.md) for provisioned A10 training,
 persistent checkpoints, and Doppler-based secret injection.
+
+## Tests
+
+```bash
+uv run python -m unittest discover -s tests -t .
+```
+
+## Dependency management
+
+`pyproject.toml` and `uv.lock` are the source of truth. The root project is a
+uv workspace whose members are `cloud/engine` and `apis/python_api`. Add or
+change dependencies with `uv add` / `uv lock`, then regenerate the pip-format
+`requirements.txt` used by Hugging Face Spaces (CPU + Gradio):
+
+```bash
+scripts/export-requirements.sh
+```
 
 ## External pretraining sources
 

@@ -32,11 +32,7 @@ class CTCPrefixScoreTH(object):
         self.input_length = x.size(1)
         self.odim = x.size(2)
         self.dtype = x.dtype
-        self.device = (
-            torch.device("cuda:%d" % x.get_device())
-            if x.is_cuda
-            else torch.device("cpu")
-        )
+        self.device = x.device
         # Pad the rest of posteriors in the batch
         # TODO(takaaki-hori): need a better way without for-loops
         for i, l in enumerate(xlens):

@@ -30,7 +30,7 @@ The Python tests remain authoritative for current behavior. Swift tests decode
 checked-in JSON fixtures under `Fixtures/API`. CI runs:
 
 ```bash
-python -m unittest tests.test_http_api
+uv run python -m unittest tests.test_http_api
 ```
 
 and the Swift fixture tests. A later OpenAPI task should generate or validate
@@ -64,7 +64,7 @@ On a Mac, start the Python API with a fake service for deterministic contract
 checks or the real service for smoke testing:
 
 ```bash
-uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
+uv run uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
 ```
 
 The simulator reaches the Mac using an explicitly configured Debug URL. Real

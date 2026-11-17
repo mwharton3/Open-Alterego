@@ -1,6 +1,8 @@
 import unittest
+from unittest import mock
 
 from python_api.core import RuntimeConfig, SilentSpeechService
+from python_api.core.config import resolve_device
 from python_api.core.service import _find_project_root
 
 
@@ -30,6 +32,22 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.device, "mps")
         self.assertEqual(config.detector, "retinaface")
         self.assertEqual(config.checkpoint_path, "/models/personal.pt")
+
+    def test_device_defaults_to_auto(self):
+        self.assertEqual(RuntimeConfig().device, "auto")
+        self.assertEqual(RuntimeConfig.from_env({}).device, "auto")
+        self.assertEqual(RuntimeConfig.from_env({"LIPREAD_DEVICE": ""}).device, "auto")
+
+    def test_auto_device_prefers_cuda_then_cpu(self):
+        with mock.patch("torch.cuda.is_available", return_value=True):
+            self.assertEqual(resolve_device("auto"), "cuda")
+        with mock.patch("torch.cuda.is_available", return_value=False):
+            self.assertEqual(resolve_device("auto"), "cpu")
+
+    def test_explicit_device_is_not_overridden(self):
+        with mock.patch("torch.cuda.is_available", return_value=True):
+            self.assertEqual(resolve_device("cpu"), "cpu")
+            self.assertEqual(resolve_device("mps"), "mps")
 
     def test_empty_checkpoint_is_normalized_to_none(self):
         self.assertIsNone(RuntimeConfig.from_env({"LIPREAD_CKPT": ""}).checkpoint_path)

@@ -6,8 +6,8 @@ applications: Apple clients handle capture and presentation while the hosted
 service performs preprocessing and inference.
 
 ```bash
-pip install -r apis/http_api/requirements.txt
-uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
+scripts/setup.sh --extras http      # from the repository root
+uv run uvicorn apis.http_api.app:app --host 0.0.0.0 --port 8000
 ```
 
 Submit a video:
