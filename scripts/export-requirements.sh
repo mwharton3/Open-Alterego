@@ -13,6 +13,6 @@ cd "$(dirname "$0")/.."
   echo "# GENERATED from uv.lock by scripts/export-requirements.sh; do not edit."
   uv export --frozen --no-header --no-dev --no-hashes --emit-index-url \
     --extra cpu --extra gradio \
-    | grep -v -F 'download.pytorch.org/whl/cu124'
+    | grep -v -e 'download.pytorch.org/whl/cu124' -e 'download.pytorch.org/whl/cu128'
 } > requirements.txt
 echo "Wrote requirements.txt"

@@ -13,7 +13,7 @@ uv run python -m open_altergo_engine.local_infer sample.mp4
 
 The engine is a uv workspace member. Its PyTorch stack (`torch`,
 `torchvision`, `torchaudio`, `pytorch-lightning`) is supplied by the root
-project's `cpu`/`cu124` extras so each machine gets the right build.
+project's `cpu`/`cu124`/`cu128` extras so each machine gets the right build.
 
 Download the pinned, checksum-verified model bundle explicitly:
 

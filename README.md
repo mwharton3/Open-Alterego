@@ -81,13 +81,14 @@ the PyTorch build for the machine:
 
 | Machine | PyTorch build | Inference device |
 | --- | --- | --- |
-| Linux/Windows with an NVIDIA driver ≥ 525 | `cu124` (CUDA 12.4) | `cuda` |
+| Linux/Windows with a Blackwell GPU (RTX 50xx, RTX PRO 6000…) and driver ≥ 570 | `cu128` (CUDA 12.8, PyTorch 2.7) | `cuda` |
+| Linux/Windows with an older NVIDIA GPU and driver ≥ 525 | `cu124` (CUDA 12.4) | `cuda` |
 | Linux/Windows without one | `cpu` | `cpu` |
 | Apple Silicon Mac | `cpu` (standard macOS wheel) | `cpu` |
 
 It installs the `gradio` and `http` interfaces by default and finishes by
 printing the device inference will use. Override the choices with
-`scripts/setup.sh --backend cpu|cu124 --extras "gradio http"`, or run uv
+`scripts/setup.sh --backend cpu|cu124|cu128 --extras "gradio http"`, or run uv
 directly, always naming exactly one backend extra:
 
 ```bash
