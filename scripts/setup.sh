@@ -4,11 +4,13 @@
 #   scripts/setup.sh                      # auto-detect, install gradio + http
 #   scripts/setup.sh --backend cpu        # force the CPU build
 #   scripts/setup.sh --extras gradio      # choose interface extras
-#   OPEN_ALTERGO_TORCH_BACKEND=cu124 scripts/setup.sh
+#   OPEN_ALTERGO_TORCH_BACKEND=cu128 scripts/setup.sh
 #
-# Detection: an NVIDIA driver (nvidia-smi) selects the CUDA 12.4 build on
-# Linux/Windows; everything else gets the CPU build. At runtime the default
-# LIPREAD_DEVICE=auto uses CUDA when available and the CPU otherwise.
+# Detection: an NVIDIA driver (nvidia-smi) selects a CUDA build on
+# Linux/Windows: CUDA 12.8 (cu128) for Blackwell GPUs (compute capability
+# >= 10.0), CUDA 12.4 (cu124) otherwise; everything else gets the CPU build.
+# At runtime the default LIPREAD_DEVICE=auto uses CUDA when available and the
+# CPU otherwise.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -16,8 +18,9 @@ cd "$(dirname "$0")/.."
 backend="${OPEN_ALTERGO_TORCH_BACKEND:-auto}"
 extras="gradio http"
 min_cuda_driver=525  # CUDA 12.x minor-version compatibility floor
+min_cu128_driver=570  # CUDA 12.8 floor, required by Blackwell
 
-usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,8 +54,18 @@ if [[ "$backend" == "auto" ]]; then
   if [[ "$os" != "Darwin" ]] && command -v nvidia-smi >/dev/null 2>&1; then
     driver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1 || true)"
     gpu="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 || true)"
+    # Highest compute capability across GPUs (e.g. "12.0" -> 12).
+    cc_major="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null \
+      | cut -d. -f1 | sort -n | tail -n1 || true)"
     if [[ -n "$driver" ]]; then
-      if (( ${driver%%.*} >= min_cuda_driver )); then
+      if [[ "$cc_major" =~ ^[0-9]+$ ]] && (( cc_major >= 10 )); then
+        if (( ${driver%%.*} >= min_cu128_driver )); then
+          backend="cu128"
+          echo "Detected NVIDIA Blackwell GPU: ${gpu} (driver ${driver})"
+        else
+          echo "Blackwell GPU ${gpu} needs NVIDIA driver >= ${min_cu128_driver} (found ${driver}); using the CPU build." >&2
+        fi
+      elif (( ${driver%%.*} >= min_cuda_driver )); then
         backend="cu124"
         echo "Detected NVIDIA GPU: ${gpu} (driver ${driver})"
       else
@@ -70,8 +83,8 @@ if [[ "$backend" == "auto" ]]; then
 fi
 
 case "$backend" in
-  cpu|cu124) ;;
-  *) echo "Unsupported backend '$backend' (expected cpu or cu124)." >&2; exit 2 ;;
+  cpu|cu124|cu128) ;;
+  *) echo "Unsupported backend '$backend' (expected cpu, cu124 or cu128)." >&2; exit 2 ;;
 esac
 
 args=(--extra "$backend")

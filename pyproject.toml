@@ -26,6 +26,14 @@ cu124 = [
   "torchaudio==2.6.0",
   "pytorch-lightning>=2.0.0",
 ]
+# Blackwell GPUs (compute capability >= 10.0, e.g. RTX 50xx / RTX PRO 6000)
+# need CUDA 12.8 kernels (sm_100/sm_120), first shipped in PyTorch 2.7.
+cu128 = [
+  "torch==2.7.1",
+  "torchvision==0.22.1",
+  "torchaudio==2.7.1",
+  "pytorch-lightning>=2.0.0",
+]
 # Interfaces
 gradio = ["gradio==6.15.2"]
 http = [
@@ -42,12 +50,13 @@ modal = ["modal>=1.0,<2"]
 package = false
 # PyTorch 2.6 publishes no Intel-macOS wheels, so on macOS only Apple Silicon
 # (native arm64 Python, not Rosetta) is supported.
+# mediapipe 0.10.21 ships CPython wheels only and none for Linux aarch64.
 environments = [
-  "sys_platform == 'linux'",
-  "sys_platform == 'win32'",
-  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "platform_python_implementation == 'CPython' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "platform_python_implementation == 'CPython' and sys_platform == 'win32'",
+  "platform_python_implementation == 'CPython' and sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
-conflicts = [[{ extra = "cpu" }, { extra = "cu124" }]]
+conflicts = [[{ extra = "cpu" }, { extra = "cu124" }, { extra = "cu128" }]]
 
 [tool.uv.workspace]
 members = ["cloud/engine", "apis/python_api"]
@@ -58,14 +67,17 @@ python-api = { workspace = true }
 torch = [
   { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
   { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform != 'darwin'" },
 ]
 torchvision = [
   { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
   { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform != 'darwin'" },
 ]
 torchaudio = [
   { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" },
   { index = "pytorch-cu124", extra = "cu124", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform != 'darwin'" },
 ]
 
 [[tool.uv.index]]
@@ -76,4 +88,9 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
